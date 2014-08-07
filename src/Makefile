@@ -1,4 +1,4 @@
-CFLAGS=-std=c99 -Wall
+CFLAGS+=-std=c99 -Wall -g
 
 all: ram_is_mine test_1
 

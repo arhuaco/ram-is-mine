@@ -1,5 +1,12 @@
 #define _GNU_SOURCE
 
+/*
+ * We use glibc __libc_malloc and friends during initialization.
+ * We could use those instead of real_malloc and friends all the time,
+ * but let's use dlsym in case somebody else (a wrapper) redefines
+ * the functions.
+ */
+
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -82,6 +89,8 @@ static bool info_find(const void *ptr, size_t *size) {
   return false;
 }
 
+static bool is_initializing;
+
 static void init(void) {
   char *ram_limit;
 
@@ -96,6 +105,8 @@ static void init(void) {
     pthread_mutex_unlock(&initialization_mutex);
     return;
   }
+
+  is_initializing = true;
 
   LOG(LOG_INFO, "** Initializing **");
 
@@ -125,10 +136,13 @@ static void init(void) {
     DIE("Error in `dlsym`: %s", dlerror());
   }
 
+  is_initializing = false;
+
   pthread_mutex_unlock(&initialization_mutex);
 }
 
-void *malloc(size_t size) {
+
+void *malloc_and_calloc(size_t size, bool is_calloc) {
   init();
 
   spin_lock();
@@ -140,7 +154,7 @@ void *malloc(size_t size) {
   }
   spin_unlock();
 
-  void *p = real_malloc(size);
+  void *p = is_calloc ? real_calloc(1, size) : real_malloc(size);
   if (p) {
     spin_lock();
     memory_count += size;
@@ -148,12 +162,33 @@ void *malloc(size_t size) {
     LOG(LOG_TRACE, "Allocated %zu bytes", size);
     info_add(p, size);
   } else {
-    LOG(LOG_FATAL, "Real alloc failed!. We have allocated %zu bytes, requested %zu more", memory_count, size);
+    LOG(LOG_FATAL, "Allocation failed!. We have allocated %zu bytes, requested %zu more", memory_count, size);
   }
   return p;
 }
 
+void *malloc(size_t size) {
+  if (is_initializing) {
+    extern void *__libc__malloc(size_t);
+    return __libc__malloc(size);
+  }
+  return malloc_and_calloc(size, false /* is alloc? */);
+}
+
+void *calloc(size_t nmemb, size_t size) {
+  if (is_initializing) {
+    extern void *__libc_calloc(size_t, size_t);
+    return __libc_calloc(nmemb, size);
+  }
+  return malloc_and_calloc(size * nmemb, true /* is alloc? */);
+}
+
 void free(void *ptr) {
+  if (is_initializing) {
+    extern void __libc_free(void *);
+    __libc_free(ptr);
+    return;
+  }
   if (ptr == NULL)
     return;
 
@@ -169,7 +204,4 @@ void free(void *ptr) {
 }
 
 
-void *calloc(size_t nmemb, size_t size) {
-  return malloc(nmemb * size);
-}
 /*void *realloc(void *ptr, size_t size);*/

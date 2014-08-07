@@ -32,6 +32,11 @@ Build UNIX
 Requirements:
 ===========
 
+Tested in Ubuntu 14.04.
+
+* glibc
+  * We rely on glibc symbol _\_libc\_calloc (and friends) being present. Used during initialization.
+
 * uthash
   * Ubuntu: uthash-dev
   * Project: http://troydhanson.github.io/uthash/.
@@ -41,4 +46,6 @@ Credits
 
 This S.O. answer got me started.
 
-* http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
+* Chromium for trashing my machine. I like it so I want to keep using it.
+* This S.O. answer got me started.
+  * http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
