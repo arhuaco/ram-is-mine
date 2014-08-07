@@ -29,6 +29,5 @@ Requirements:
 ===========
 
 * uthash
-
-Ubuntu: uthash-dev
-Project: http://troydhanson.github.io/uthash/.
+  * Ubuntu: uthash-dev
+  * Project: http://troydhanson.github.io/uthash/.
