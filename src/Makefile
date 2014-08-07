@@ -1,6 +1,3 @@
-CC=clang
-#CC=gcc
-
 CFLAGS=-std=c99 -Wall
 
 all: ram_is_mine test_1
