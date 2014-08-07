@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -41,11 +42,15 @@ typedef struct {
 MemInfo *mem_info_hash = NULL;
 
 
-void info_find(const void *ptr) {
+bool info_find(const void *ptr, size_t *size) {
   MemInfo *info = NULL;
   HASH_FIND_PTR(mem_info_hash, &ptr, info);
-  assert(info);
-  fprintf(stderr, "FOUND!\n");
+  if (info) {
+    *size = info->size;
+    return true;
+  }
+  fprintf(stderr, "NOT FOUND!\n");
+  return false;
 }
 
 
@@ -55,7 +60,6 @@ static void info_add(const void *ptr, size_t size) {
   info->ptr = ptr;
   info->size = size;
   HASH_ADD_PTR(mem_info_hash, ptr, info);
-  info_find(ptr);
 }
 
 static void intersect_init(void) {
@@ -85,6 +89,7 @@ static void intersect_init(void) {
 }
 
 void *malloc(size_t size) {
+
   intersect_init();
 
   fprintf(stderr, "malloc(%zu) = ", size);

@@ -6,7 +6,11 @@ Ensure that programs do not use more RAM memory than they are allowed to.
 Google Chromium is a memory hog and sometimes it uses so much RAM that the
 computer starts trashing.
 
-There might be other ways to do this, but I wanted to try this way.
+I wanted to try this way. I could use ulimit and run the process with its ouwn
+user, but I think it will be handy to have this program around.
+
+It will add a bit of overhead for small allocations. This will be optimized
+later.
 
 Usage
 ===========
