@@ -22,7 +22,7 @@
 static void * (*real_malloc)(size_t);
 static void   (*real_free)(void *ptr);
 static void * (*real_calloc)(size_t nmemb, size_t size);
-/*void *realloc(void *ptr, size_t size);*/
+static void * (*real_realloc)(void *ptr, size_t size);
 
 #define uthash_malloc(sz) real_malloc(sz)
 #define uthash_free(ptr,sz) real_free(ptr)
@@ -83,15 +83,17 @@ static void info_add(const void *ptr, size_t size) {
   HASH_ADD_PTR(mem_info_hash, ptr, info);
 }
 
-static bool info_find(const void *ptr, size_t *size) {
+static MemInfo *info_find(const void *ptr) {
   MemInfo *info = NULL;
   HASH_FIND_PTR(mem_info_hash, &ptr, info);
-  if (info) {
-    *size = info->size;
-    return true;
+  if (!info) {
+    LOG(LOG_ERROR, "Pointer %p not found", ptr);
   }
-  LOG(LOG_ERROR, "Pointer %p not found", ptr);
-  return false;
+  return info;
+}
+
+static void info_delete(MemInfo *info) {
+  HASH_DEL(mem_info_hash, info);
 }
 
 static bool is_initializing;
@@ -133,11 +135,11 @@ static void init(void) {
     DIE("Error in `pthread_spin_init`");
   }
 
-  real_malloc = dlsym(RTLD_NEXT, "malloc");
-  real_free = dlsym(RTLD_NEXT, "free");
-  real_calloc = dlsym(RTLD_NEXT, "calloc");
-
-  if (real_malloc == NULL || real_free == NULL || real_calloc == NULL) {
+  if (!((real_malloc = dlsym(RTLD_NEXT, "malloc")) &&
+        (real_free = dlsym(RTLD_NEXT, "free")) &&
+        (real_calloc = dlsym(RTLD_NEXT, "calloc")) &&
+        (real_realloc = dlsym(RTLD_NEXT, "realloc"))
+       )) {
     DIE("Error in `dlsym`: %s", dlerror());
   }
 
@@ -153,6 +155,7 @@ void *malloc_and_calloc(size_t size, bool is_calloc) {
   spin_lock();
   if (memory_count + size > memory_limit) {
     spin_unlock();
+    /* Idential LOG in realloc. Factorize? */
     LOG(LOG_INFO, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
         memory_count, memory_limit, size);
     return NULL;
@@ -164,10 +167,10 @@ void *malloc_and_calloc(size_t size, bool is_calloc) {
     spin_lock();
     memory_count += size;
     spin_unlock();
-    LOG(LOG_TRACE, "Allocated %zu bytes", size);
+    LOG(LOG_TRACE, "Allocated %zu bytes. Currenty allocated: %zu.", size, memory_count);
     info_add(p, size);
   } else {
-    LOG(LOG_FATAL, "Allocation failed!. We have allocated %zu bytes, requested %zu more", memory_count, size);
+    LOG(LOG_FATAL, "Allocation failed!. We have allocated %zu bytes, requested %zu more.", memory_count, size);
   }
   return p;
 }
@@ -197,16 +200,73 @@ void free(void *ptr) {
   if (ptr == NULL)
     return;
 
-  size_t size;
-  if(info_find(ptr, &size)) {
+  init();
+
+  MemInfo *info = info_find(ptr);
+  if(info) {
+    real_free(ptr);
     spin_lock();
-    memory_count -= size;
+    memory_count -= info->size;
     spin_unlock();
-    LOG(LOG_TRACE, "Free'd %zu bytes. Using %zu.", size, memory_count);
+    LOG(LOG_TRACE, "Free'd %zu bytes. Using %zu.", info->size, memory_count);
+    info_delete(info);
   } else {
-    LOG(LOG_ERROR, "Tried to free unknown pointer %p", ptr);
+    LOG(LOG_ERROR, "Tried to free unknown pointer %p.", ptr);
   }
 }
 
+void *realloc(void *old_ptr, size_t new_size) {
+  if (is_initializing) {
+    extern void *__libc_realloc(void *, size_t);
+    return __libc_realloc(old_ptr, new_size);
+  }
 
-/*void *realloc(void *ptr, size_t size);*/
+  init();
+
+  if (new_size == 0) {
+    free(old_ptr);
+    return NULL;
+  }
+
+  if (old_ptr == NULL)
+    return malloc(new_size);
+
+  MemInfo *old_info = info_find(old_ptr);
+  if (old_info == NULL) {
+    LOG(LOG_ERROR, "Tried to realloc unknown pointer %p.", old_ptr);
+    return NULL;
+  }
+
+  if (memory_count - old_info->size + new_size > memory_limit) {
+    /* Idential LOG in malloc_or_calloc. Factorize? */
+    LOG(LOG_INFO, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
+        memory_count, memory_limit,  old_info->size + new_size);
+   return NULL; /* old_info untouched. This is OK. */
+  }
+
+  void *new_ptr = real_realloc(old_ptr, new_size);
+
+  if (new_ptr == NULL) {
+    LOG(LOG_ERROR, "Realloc of %p failed. Memory (should be) untouched.", old_ptr);
+    return NULL;
+  }
+
+  spin_lock();
+  memory_count -= old_info->size;
+  memory_count += new_size;
+  spin_unlock();
+
+  const size_t old_size = old_info->size;
+
+  if (new_ptr == old_ptr) {
+    old_info->size = new_size;
+  } else {
+    info_delete(old_info);
+    info_add(new_ptr, new_size);
+  }
+
+  LOG(LOG_TRACE, "Reallocated from %zu bytes to %zu bytes. Currently allocated %zu bytes. Old ptr %p, new ptr %p.",
+                  old_size, new_size, memory_count, old_ptr, new_ptr);
+
+  return new_ptr;
+}
