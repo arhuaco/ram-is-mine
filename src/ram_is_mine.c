@@ -1,6 +1,11 @@
 #define _GNU_SOURCE
 
 /*
+ *  Nelson Castillo <nelsoneci@gmail.com>
+ *  http://arhuaco.org
+ *  2014.
+ *  This code is released under the license GPL v2.
+ *
  * We use glibc __libc_malloc and friends during initialization.
  * We could use those instead of real_malloc and friends all the time,
  * but let's use dlsym in case somebody else (a wrapper) redefines
