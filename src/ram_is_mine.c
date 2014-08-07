@@ -9,6 +9,8 @@
 
 static void * (*real_malloc)(size_t);
 static void   (*real_free)(void *ptr);
+static void * (*real_calloc)(size_t nmemb, size_t size);
+/*void *realloc(void *ptr, size_t size);*/
 
 #define uthash_malloc(sz) real_malloc(sz)
 #define uthash_free(ptr,sz) real_free(ptr)
@@ -22,8 +24,7 @@ enum {
   LOG_TRACE,
 } curent_log_level = LOG_TRACE;
 
-#define STR2(x) #x
-#define STR(x) STR2(x)
+#define STR(x) #x
 #define LOG(level, format, ...) do {                                  \
   if (level <= curent_log_level) {                                    \
     fprintf(stderr, __FILE__ ":" STR(__LINE__) ": "                   \
@@ -98,6 +99,8 @@ static void init(void) {
 
   LOG(LOG_INFO, "** Initializing **");
 
+  LOG(LOG_INFO, "USING uthash version " STR(UTHASH_VERSION));
+
   ram_limit = getenv ("MY_RAM_LIMIT");
 
   if (ram_limit) {
@@ -116,8 +119,9 @@ static void init(void) {
 
   real_malloc = dlsym(RTLD_NEXT, "malloc");
   real_free = dlsym(RTLD_NEXT, "free");
+  real_calloc = dlsym(RTLD_NEXT, "calloc");
 
-  if (real_malloc == NULL || real_free == NULL) {
+  if (real_malloc == NULL || real_free == NULL || real_calloc == NULL) {
     DIE("Error in `dlsym`: %s", dlerror());
   }
 
@@ -165,5 +169,7 @@ void free(void *ptr) {
 }
 
 
-/*void *calloc(size_t nmemb, size_t size);
-void *realloc(void *ptr, size_t size);*/
+void *calloc(size_t nmemb, size_t size) {
+  return malloc(nmemb * size);
+}
+/*void *realloc(void *ptr, size_t size);*/
