@@ -34,7 +34,7 @@ enum {
   LOG_WARN,
   LOG_INFO,
   LOG_TRACE,
-} curent_log_level = LOG_TRACE;
+} curent_log_level = LOG_ERROR;
 
 #define STR_TMP(x) #x
 #define STR(x) STR_TMP(x)
@@ -157,7 +157,7 @@ void *malloc_and_calloc(size_t size, bool is_calloc) {
   if (memory_count + size > memory_limit) {
     spin_unlock();
     /* Idential LOG in realloc. Factorize? */
-    LOG(LOG_INFO, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
+    LOG(LOG_ERROR, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
         memory_count, memory_limit, size);
     return NULL;
   }
@@ -239,7 +239,7 @@ void *realloc(void *old_ptr, size_t new_size) {
 
   if (memory_count - old_info->size + new_size > memory_limit) {
     /* Idential LOG in malloc_or_calloc. Factorize? */
-    LOG(LOG_INFO, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
+    LOG(LOG_ERROR, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
         memory_count, memory_limit,  old_info->size + new_size);
    return NULL; /* old_info untouched. This is OK. */
   }
