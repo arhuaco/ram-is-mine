@@ -43,6 +43,5 @@ Credits
 
 This S.O. answer got me started.
 
-* Chromium for trashing my machine. I like it so I want to keep using it. Now I have to figure out how to use this with it :-)
 * This S.O. answer got me started.
   * http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
