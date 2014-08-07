@@ -36,7 +36,8 @@ enum {
   LOG_TRACE,
 } curent_log_level = LOG_TRACE;
 
-#define STR(x) #x
+#define STR_TMP(x) #x
+#define STR(x) STR_TMP(x)
 #define LOG(level, format, ...) do {                                  \
   if (level <= curent_log_level) {                                    \
     fprintf(stderr, __FILE__ ":" STR(__LINE__) ": "                   \
@@ -221,15 +222,14 @@ void *realloc(void *old_ptr, size_t new_size) {
     return __libc_realloc(old_ptr, new_size);
   }
 
-  init();
+  if (old_ptr == NULL)
+    return malloc(new_size);
 
   if (new_size == 0) {
     free(old_ptr);
     return NULL;
   }
 
-  if (old_ptr == NULL)
-    return malloc(new_size);
 
   MemInfo *old_info = info_find(old_ptr);
   if (old_info == NULL) {
@@ -258,9 +258,10 @@ void *realloc(void *old_ptr, size_t new_size) {
 
   const size_t old_size = old_info->size;
 
-  if (new_ptr == old_ptr) {
+  /* FIXME(len). Enable when we can test this. */
+  /*if (new_ptr == old_ptr) {
     old_info->size = new_size;
-  } else {
+  } else*/ {
     info_delete(old_info);
     info_add(new_ptr, new_size);
   }
