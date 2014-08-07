@@ -258,10 +258,9 @@ void *realloc(void *old_ptr, size_t new_size) {
 
   const size_t old_size = old_info->size;
 
-  /* FIXME(len). Enable when we can test this. */
-  /*if (new_ptr == old_ptr) {
+  if (new_ptr == old_ptr) {
     old_info->size = new_size;
-  } else*/ {
+  } else {
     info_delete(old_info);
     info_add(new_ptr, new_size);
   }
