@@ -3,7 +3,7 @@ ram-is-mine
 
 Ensure that programs do not use more RAM memory than they are allowed to.
 
-I wanted to try this way. I could use ulimit and run the process with its ouwn
+I wanted to try this way. I could try to use ulimit and run the process with its own
 user, but I think it will be handy to have this program around.
 
 It will add a bit of overhead for small allocations. This will be optimized
