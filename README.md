@@ -3,6 +3,8 @@ ram-is-mine
 
 Ensure that programs do not use more RAM memory than they are allowed to.
 
+Some programs have their own malloc implementations and they do not return RAM to the OS.
+
 I wanted to try this way. I could try to use ulimit and run the process with its own
 user, but I think it will be handy to have this program around.
 
