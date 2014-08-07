@@ -3,9 +3,6 @@ ram-is-mine
 
 Ensure that programs do not use more RAM memory than they are allowed to.
 
-Google Chromium is a memory hog and sometimes it uses so much RAM that the
-computer starts trashing.
-
 I wanted to try this way. I could use ulimit and run the process with its ouwn
 user, but I think it will be handy to have this program around.
 
@@ -15,7 +12,7 @@ later.
 Usage
 ===========
 
-LD\_PRELOAD\_64=./ram-is-mine.so LD\_PRELOAD=./ram-is-mine.so ./test\_1
+MY\_RAM\_LIMIT=$((1024\*1024\*1024\*2))  LD\_PRELOAD\_64=./ram-is-mine.so LD\_PRELOAD=./ram-is-mine.so test\_1
 
 Replace test\_1 with your program.
 
@@ -46,6 +43,6 @@ Credits
 
 This S.O. answer got me started.
 
-* Chromium for trashing my machine. I like it so I want to keep using it.
+* Chromium for trashing my machine. I like it so I want to keep using it. Now I have to figure out how to use this with it :-)
 * This S.O. answer got me started.
   * http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
