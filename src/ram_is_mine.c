@@ -8,10 +8,11 @@
 #include <pthread.h>
 
 static void * (*real_malloc)(size_t);
+static void   (*real_free)(void *ptr);
 
 #define uthash_malloc(sz) real_malloc(sz)
+#define uthash_free(ptr,sz) real_free(ptr)
 #include <uthash.h>
-
 
 enum {
   LOG_FATAL,
@@ -61,6 +62,14 @@ static volatile size_t memory_count;
 /* Default memory Limit of 2GiB. Override with env MY_RAM_LIMIT. */
 static size_t memory_limit = 1024L * 1024L * 1024L * 2L;
 
+static void info_add(const void *ptr, size_t size) {
+  MemInfo *info = real_malloc(sizeof(MemInfo));
+  assert(info);
+  info->ptr = ptr;
+  info->size = size;
+  HASH_ADD_PTR(mem_info_hash, ptr, info);
+}
+
 static bool info_find(const void *ptr, size_t *size) {
   MemInfo *info = NULL;
   HASH_FIND_PTR(mem_info_hash, &ptr, info);
@@ -70,15 +79,6 @@ static bool info_find(const void *ptr, size_t *size) {
   }
   LOG(LOG_ERROR, "Pointer %p not found", ptr);
   return false;
-}
-
-
-static void info_add(const void *ptr, size_t size) {
-  MemInfo *info = real_malloc(sizeof(MemInfo));
-  assert(info);
-  info->ptr = ptr;
-  info->size = size;
-  HASH_ADD_PTR(mem_info_hash, ptr, info);
 }
 
 static void init(void) {
@@ -115,7 +115,9 @@ static void init(void) {
   }
 
   real_malloc = dlsym(RTLD_NEXT, "malloc");
-  if (NULL == real_malloc) {
+  real_free = dlsym(RTLD_NEXT, "free");
+
+  if (real_malloc == NULL || real_free == NULL) {
     DIE("Error in `dlsym`: %s", dlerror());
   }
 
@@ -146,6 +148,22 @@ void *malloc(size_t size) {
   }
   return p;
 }
+
+void free(void *ptr) {
+  if (ptr == NULL)
+    return;
+
+  size_t size;
+  if(info_find(ptr, &size)) {
+    spin_lock();
+    memory_count -= size;
+    spin_unlock();
+    LOG(LOG_TRACE, "Free'd %zu bytes. Using %zu.", size, memory_count);
+  } else {
+    LOG(LOG_ERROR, "Tried to free unknown pointer %p", ptr);
+  }
+}
+
 
 /*void *calloc(size_t nmemb, size_t size);
 void *realloc(void *ptr, size_t size);*/
