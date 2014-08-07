@@ -32,4 +32,4 @@ test_realloc: ram_is_mine test_realloc_build
 	MY_RAM_LIMIT=10000 LD_PRELOAD_64=./ram-is-mine.so LD_PRELOAD=./ram-is-mine.so test/test_realloc
 
 clean:
-	rm -f *.so *.o test/test_malloc
+	rm -f *.so *.o test/test_malloc test/test_calloc test/test_realloc
