@@ -33,12 +33,15 @@ enum {
 #define DIE(format, ...) do {                                         \
   fprintf(stderr, __FILE__ ":" STR(__LINE__) ":"                      \
   format "\n", ##__VA_ARGS__);                                        \
-  exit(1);                                                            \
+  exit(0);                                                            \
 } while(0)
 
 static pthread_mutex_t initialization_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static pthread_spinlock_t spin_lock;
+static pthread_spinlock_t spin_lock_internal;
+
+#define spin_lock() while (pthread_spin_lock(&spin_lock_internal))
+#define spin_unlock() while (pthread_spin_unlock(&spin_lock_internal))
 
 typedef struct {
   /* The pointer address is the key for the hash. */
@@ -53,9 +56,12 @@ typedef struct {
 static MemInfo *mem_info_hash;
 
 /* How much memory has been allocated. */
-volatile size_t memory_count;
+static volatile size_t memory_count;
 
-bool info_find(const void *ptr, size_t *size) {
+/* Default memory Limit of 2GiB. Override with env MY_RAM_LIMIT. */
+static size_t memory_limit = 1024L * 1024L * 1024L * 2L;
+
+static bool info_find(const void *ptr, size_t *size) {
   MemInfo *info = NULL;
   HASH_FIND_PTR(mem_info_hash, &ptr, info);
   if (info) {
@@ -73,10 +79,11 @@ static void info_add(const void *ptr, size_t size) {
   info->ptr = ptr;
   info->size = size;
   HASH_ADD_PTR(mem_info_hash, ptr, info);
-  LOG(LOG_TRACE, "Added pointer %p", ptr);
 }
 
-static void intersect_init(void) {
+static void init(void) {
+  char *ram_limit;
+
   if (real_malloc) {
     return;
   }
@@ -91,49 +98,52 @@ static void intersect_init(void) {
 
   LOG(LOG_INFO, "** Initializing **");
 
+  ram_limit = getenv ("MY_RAM_LIMIT");
+
+  if (ram_limit) {
+    memory_limit = atoll(ram_limit); /* TODO: Use strtoll and validate. */
+    LOG(LOG_INFO, "MY_RAM_LIMIT set. Using: %zu", memory_limit);
+  } else {
+    LOG(LOG_INFO, "MY_RAM_LIMIT ***NOT*** set. Using default of: %zu. "
+                  "Override with env MY_RAM_LIMIT.", memory_limit);
+  }
+
+
   /* Initialize the spinlock first. */
-  if(pthread_spin_init(&spin_lock, PTHREAD_PROCESS_SHARED)) {
-    fprintf(stderr, "Error in `pthread_spin_init`\n");
-    exit(1);
+  if(pthread_spin_init(&spin_lock_internal, PTHREAD_PROCESS_SHARED)) {
+    DIE("Error in `pthread_spin_init`");
   }
 
   real_malloc = dlsym(RTLD_NEXT, "malloc");
   if (NULL == real_malloc) {
-    fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
-    exit(1);
+    DIE("Error in `dlsym`: %s", dlerror());
   }
 
   pthread_mutex_unlock(&initialization_mutex);
 }
 
 void *malloc(size_t size) {
+  init();
 
-  intersect_init();
-
-  fprintf(stderr, "malloc(%zu) = ", size);
-
-  while (pthread_spin_lock(&spin_lock));
-  if (memory_count > 2L * 1024L * 1024L * 1024L) {
-    while (pthread_spin_unlock(&spin_lock));
-    fprintf(stderr, " DENY!\n");
+  spin_lock();
+  if (memory_count + size > memory_limit) {
+    spin_unlock();
+    LOG(LOG_INFO, "Allocation denied! We have allocated %zu bytes, limit is %zu and requested %zu more.",
+        memory_count, memory_limit, size);
     return NULL;
   }
-  while (pthread_spin_unlock(&spin_lock));
-
+  spin_unlock();
 
   void *p = real_malloc(size);
   if (p) {
-    fprintf(stderr, " OK\n");
-    while (pthread_spin_lock(&spin_lock));
+    spin_lock();
     memory_count += size;
-    while (pthread_spin_unlock(&spin_lock));
+    spin_unlock();
+    LOG(LOG_TRACE, "Allocated %zu bytes", size);
+    info_add(p, size);
   } else {
-    fprintf(stderr, " FAIL\n");
+    LOG(LOG_FATAL, "Real alloc failed!. We have allocated %zu bytes, requested %zu more", memory_count, size);
   }
-
-  fprintf(stderr, "allocated: %zu\n", memory_count);
-
-  info_add(p, size);
   return p;
 }
 

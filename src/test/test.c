@@ -1,10 +1,15 @@
 #include <stdlib.h>
 
+
 int main(int argc, char *argv[]) {
   int i;
-  for (i= 0; i < 10; ++i) {
-    void* x = malloc(10000 + i);
-    free(x);
+  const int limit = 10;
+  void *ptr[limit];
+  for (i= 0; i < limit; ++i) {
+    ptr[i] = malloc(10000 * i);
+  }
+  for (i= 0; i < limit; ++i) {
+    free(ptr[i]);
   }
   return 0;
 }

@@ -1,5 +1,5 @@
-#CC=clang
-CC=gcc
+CC=clang
+#CC=gcc
 
 CFLAGS=-std=c99 -Wall
 
@@ -14,7 +14,7 @@ test_1: test/test.c
 .PHONY: clean test
 
 test: all
-	LD_PRELOAD_64=./ram-is-mine.so LD_PRELOAD=./ram-is-mine.so ./test_1
+	MY_RAM_LIMIT=10000 LD_PRELOAD_64=./ram-is-mine.so LD_PRELOAD=./ram-is-mine.so ./test_1
 
 clean:
 	rm -f *.so *.o test_1
