@@ -35,3 +35,10 @@ Requirements:
 * uthash
   * Ubuntu: uthash-dev
   * Project: http://troydhanson.github.io/uthash/.
+
+Credits
+===========
+
+This S.O. answer got me started.
+
+* http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
