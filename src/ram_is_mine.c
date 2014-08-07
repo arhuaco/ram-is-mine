@@ -1,12 +1,3 @@
-/*
- * Intersect allocations. I started with this example.
- * http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
- *
- *  LD_PRELOAD_64=./intersect_malloc.so LD_PRELOAD=./intersect_malloc.so [your program]
- *
- * This spinlock thing is not tested.
- */
-
 #define _GNU_SOURCE
 
 #include <assert.h>
@@ -16,31 +7,53 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-static void* (*real_malloc)(size_t) = NULL;
+static void * (*real_malloc)(size_t);
 
 #define uthash_malloc(sz) real_malloc(sz)
 #include <uthash.h>
 
-const int curent_log_level = 5;
-#define LOG(level, format, ...) do {              \
-    if (level >=curent_log_level )                \
-        fprintf(stderr, format, ##__VA_ARGS__);   \
+
+enum {
+  LOG_FATAL,
+  LOG_ERROR,
+  LOG_WARN,
+  LOG_INFO,
+  LOG_TRACE,
+} curent_log_level = LOG_TRACE;
+
+#define STR2(x) #x
+#define STR(x) STR2(x)
+#define LOG(level, format, ...) do {                                  \
+  if (level <= curent_log_level) {                                    \
+    fprintf(stderr, __FILE__ ":" STR(__LINE__) ": "                   \
+    format "\n", ##__VA_ARGS__);                                      \
+  }                                                                   \
 } while(0)
 
-static pthread_mutex_t memory_count_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define DIE(format, ...) do {                                         \
+  fprintf(stderr, __FILE__ ":" STR(__LINE__) ":"                      \
+  format "\n", ##__VA_ARGS__);                                        \
+  exit(1);                                                            \
+} while(0)
+
+static pthread_mutex_t initialization_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_spinlock_t spin_lock;
 
-volatile size_t memory_count = 0;
-
 typedef struct {
+  /* The pointer address is the key for the hash. */
   const void *ptr;
+  /* Allocated size. */
   size_t size;
+  /* Internal of uthash. */
   UT_hash_handle hh;
 } MemInfo;
 
-MemInfo *mem_info_hash = NULL;
+/* The hash of known allocated addresses. */
+static MemInfo *mem_info_hash;
 
+/* How much memory has been allocated. */
+volatile size_t memory_count;
 
 bool info_find(const void *ptr, size_t *size) {
   MemInfo *info = NULL;
@@ -49,7 +62,7 @@ bool info_find(const void *ptr, size_t *size) {
     *size = info->size;
     return true;
   }
-  fprintf(stderr, "NOT FOUND!\n");
+  LOG(LOG_ERROR, "Pointer %p not found", ptr);
   return false;
 }
 
@@ -60,18 +73,23 @@ static void info_add(const void *ptr, size_t size) {
   info->ptr = ptr;
   info->size = size;
   HASH_ADD_PTR(mem_info_hash, ptr, info);
+  LOG(LOG_TRACE, "Added pointer %p", ptr);
 }
 
 static void intersect_init(void) {
   if (real_malloc) {
     return;
   }
-  pthread_mutex_lock(&memory_count_mutex);
-  /* I think this double check is an anti-pattern. Let's do it here. Nobody is watching. */
+  pthread_mutex_lock(&initialization_mutex);
+  /* I think this double check is an anti-pattern.
+   * Let's do it here. Nobody is watching. And it will save time.
+   */
   if (real_malloc) {
-    pthread_mutex_unlock(&memory_count_mutex);
+    pthread_mutex_unlock(&initialization_mutex);
     return;
   }
+
+  LOG(LOG_INFO, "** Initializing **");
 
   /* Initialize the spinlock first. */
   if(pthread_spin_init(&spin_lock, PTHREAD_PROCESS_SHARED)) {
@@ -85,7 +103,7 @@ static void intersect_init(void) {
     exit(1);
   }
 
-  pthread_mutex_unlock(&memory_count_mutex);
+  pthread_mutex_unlock(&initialization_mutex);
 }
 
 void *malloc(size_t size) {

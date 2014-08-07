@@ -1,15 +1,20 @@
-# Silly Makefile.
+#CC=clang
+CC=gcc
 
 CFLAGS=-std=c99 -Wall
 
 all: ram_is_mine test_1
 
 ram_is_mine: ram_is_mine.c
-	gcc $(CFLAGS) -shared -fPIC -o ram-is-mine.so ram_is_mine.c -ldl -lpthread
+	$(CC) $(CFLAGS) -shared -fPIC -o ram-is-mine.so ram_is_mine.c -ldl -lpthread
 
 test_1: test/test.c
-	gcc $(CFLAGS) test/test.c -o test_1
+	$(CC) $(CFLAGS) test/test.c -o test_1
 
-.PHONY: clean
+.PHONY: clean test
+
+test: all
+	LD_PRELOAD_64=./ram-is-mine.so LD_PRELOAD=./ram-is-mine.so ./test_1
+
 clean:
 	rm -f *.so *.o test_1
