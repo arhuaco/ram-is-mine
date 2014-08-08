@@ -43,7 +43,5 @@ Tested in Ubuntu 14.04.
 Credits
 ===========
 
-This S.O. answer got me started.
-
 * This S.O. answer got me started.
   * http://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
