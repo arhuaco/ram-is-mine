@@ -16,7 +16,7 @@ def main():
     while True:
         with get_status_file(sys.argv[1]) as status_file:
             if status_file == None:
-                sys.exit(0)
+                return 0
             #VmSize:  3201152 kB
             #VmRSS:   1530084 kB
             measures = {}
