@@ -1,5 +1,7 @@
 ''' Measure memory usage  of PID each second. '''
 
+# Example: python3 log_usage.py  `pidof geth` > log.txt
+
 import sys
 import time
 
@@ -24,6 +26,7 @@ def main():
                 if line.startswith('VmSize:') or line.startswith('VmRSS:'):
                     measures[line.split()[0][:-1]] = line.split()[1]
         print(time.time(), measures['VmRSS'], measures['VmSize'])
+        sys.stdout.flush()
         time.sleep(1)
     return 0
 
