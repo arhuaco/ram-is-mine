@@ -5,7 +5,7 @@ CFLAGS+=-std=c99 -Wall -g
 all: ram_is_mine
 
 ram_is_mine: ram_is_mine.c
-	$(CC) $(CFLAGS) -shared -fPIC -o ram-is-mine.so ram_is_mine.c -ldl -lpthread
+	$(CC) $(CFLAGS) -shared -fPIC -o ram-is-mine.so ram_is_mine.c -ldl -lpthread -I .
 
 test_malloc_build: test/test_malloc.c
 	$(CC) $(CFLAGS) test/test_malloc.c -o test/test_malloc
